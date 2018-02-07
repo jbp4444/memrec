@@ -1,0 +1,123 @@
+#!/bin/bash
+#
+# Startup script for the dlogger
+#
+# chkconfig: - 88 12
+# description: dlogger generates and logs machine stats every N minutes
+# processname: dlogger
+
+# RCSID $Id: dlogger 613 2013-04-24 20:03:10Z jbp $
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Path to the script.
+exec="/opt/memrec/sbin/dlogger.pl"
+kexec="dlogger.pl"
+prog="dlogger"
+
+[ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
+
+lockfile=/var/lock/subsys/$prog
+
+start() {
+	[ -x $exec ] || exit 5
+	[ -f $config ] || exit 6
+	echo -n $"Starting $prog: "
+	# could use: daemon $exec
+	$exec
+	retval=$?
+	if [ $retval = 0 ]; then
+		success
+	else
+		failure
+	fi
+	echo
+	return $retval
+}
+
+stop() {
+	echo -n $"Stopping $prog: "
+	/usr/bin/killall -INT $kexec
+	retval=$?
+	if [ $retval = 0 ]; then
+		success
+	else
+		failure
+	fi
+	echo
+	return $retval
+}
+
+restart() {
+    stop
+    start
+}
+
+reload() {
+	echo -n "Reloading $prog config: "
+	/usr/bin/killall -USR2 $kexec
+	retval=$?
+	if [ $retval = 0 ]; then
+		success
+	else
+		failure
+	fi
+	echo
+	return $retval
+}
+
+force_reload() {
+    restart
+}
+
+rh_status() {
+	# run checks to determine if the service is running or use generic status
+	#status $prog
+	out=`/sbin/pidof -x $kexec`
+	retval=$?
+	if [ $retval = 0 ]; then
+		echo "$prog (pid $out) is running..."
+		return 0
+	else
+		echo "$prog dead"
+		return 1
+	fi
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+
+case "$1" in
+    start)
+        rh_status_q && exit 0
+        $1
+        ;;
+    stop)
+        rh_status_q || exit 0
+        $1
+        ;;
+    restart)
+        $1
+        ;;
+    reload)
+        rh_status_q || exit 7
+        $1
+        ;;
+    force-reload)
+        force_reload
+        ;;
+    status)
+        rh_status
+        ;;
+    condrestart|try-restart)
+        rh_status_q || exit 0
+        restart
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        exit 2
+esac
+exit $?

@@ -1,0 +1,64 @@
+Some notes for integrating dscrlogger.pl with syslog
+
+FILE: /etc/syslog.conf:
+  *.info;mail.none;authpriv.none;cron.none;local4.none	/var/log/messages
+  local4.*						/var/log/local4
+First line stops logging of local4 entries to main messages file
+Second line directs local4 entries to their own file
+
+
+FILE: /etc/logrotate.d/syslog
+   /var/log/messages /var/log/secure /var/log/maillog /var/log/spooler 
+          /var/log/boot.log /var/log/cron /var/log/local4 {
+     sharedscripts
+     postrotate
+ 	 /bin/kill -HUP `cat /var/run/syslogd.pid 2> /dev/null` 2> /dev/null || true
+	 /bin/kill -HUP `cat /var/run/rsyslogd.pid 2> /dev/null` 2> /dev/null || true
+     endscript
+   }
+Added local4 file to the file list (lines 1 and 2)
+
+
+OR, NEW FILE: /etc/logrotate.d/local4
+   /var/log/local4 {
+     sharedscripts
+     postrotate
+ 	 /bin/kill -HUP `cat /var/run/syslogd.pid 2> /dev/null` 2> /dev/null || true
+	 /bin/kill -HUP `cat /var/run/rsyslogd.pid 2> /dev/null` 2> /dev/null || true
+     endscript
+   }
+Copied/modified from /etc/logrotate.d/syslog, doesn't require changes to original
+file, but may now do a double-kill of syslog daemon
+
+
+FOR SPLUNK:
+
+assuming /opt/splunk installation
+
+COPY FILE: /opt/splunk/etc/splunk-launch.conf from splunk-launch.conf.default,
+then ADD/MODIFY:
+    SPLUNK_HOME=/opt/splunk
+    SPLUNK_IGNORE_SELINUX=true
+
+sudo splunk start
+
+http://bdgpu-login-01:8000
+     admin password starts as 'changeme'
+     now set to 'bluedevil'
+
+
+SPLUNK CONFIG:
+Could set up clients as standard syslog forwarders - just modify /etc/syslog.conf
+to push local4 out to monitor node/splunk receiver.  But this could lose data if
+the network goes down - no data is kept on the local machine, so blips in the
+network lead to blips in the data stream.  Inside of splunk, all incoming
+(forwarded) data shows up as "source=udp:514" -- host field is correct, but
+it is a little misleading.
+
+Splunk forwarders (or light forwarders) should be a better option.
+
+Syslog forwards on port 514/udp.  Splunk forwarders use port 9997/tcp.
+
+
+
+ 

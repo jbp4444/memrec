@@ -1,0 +1,40 @@
+Packaging Instructions
+======================
+
+(1) in /tmp/rpmbuild, make link to rpmstuff/makefile
+(1b) run:  make new
+
+(2) in memrec/., do:  make tar.gz
+(2b) mv ../memrec.tar.gz /tmp/rpmbuild/SOURCES/.
+
+(3) in /tmp/rpmbuild, do:  make rpmbuild
+
+Done!
+
+-----
+
+(1) ./lib/memrec/*  -->  /opt/memrec/lib/memrec
+
+(2) ./etc/*  --> /opt/memrec/etc
+
+(3) ./bin/*  -->  /opt/memrec/bin
+
+(4) ./sbin/*  -->  /opt/memrec/sbin
+   this includes the qloadsensor for SGE; so we'll need to change
+	change the SGE config setting
+		--> 'qconf -sconf' currently shows load_sensor == none
+
+(5) ./src/ipmitool-1.8.9 (exe)  -->  /opt/memrec/sbin
+	this is the older version of ipmitool since 1.8.11 doesn't work
+	smoothly with Dell servers
+   
+(6) ./src/dump_tstat (exe)  -->  /opt/memrec/sbin
+   needs to run as root (suid?)
+   makefile is included, but basically does 'gcc -o $@ $<'
+
+
+Everything should be under a common root.
+
+memrec and dlogger will look in the directory Perl::$FindBin/../lib/memrec
+for the perl module files.
+
