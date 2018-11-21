@@ -24,7 +24,7 @@
 #
 # RCSID $Id: netinfo.pm 606 2013-04-23 19:31:47Z jbp $
 
-package netinfo;
+package netinfo2;
 require Exporter;
 @ISA    = qw(Exporter);
 @EXPORT = qw( &new &prep );
@@ -119,35 +119,37 @@ sub getdata {
 			$e = $2 + 0;
 			@fld = split( /\s+/, $3 );
 
+			@delta = ();
 			for($i=0;$i<scalar(@fld);$i++) {
 				$delta[$i] += $self->{"ctr_${e}_$i"}->update( $fld[$i] );
 			}
 			
 			$eth_list{$e} = 1;
+
+			$delta_bytes_in       = $delta[0];
+			$delta_packets_in     = $delta[1];
+			$delta_packeterrs_in  = $delta[2] + $delta[3] + $delta[4] + $delta[5];
+			$delta_bytes_out      = $delta[8];
+			$delta_packets_out    = $delta[9];
+			$delta_packeterrs_out = $delta[10] + $delta[11] + $delta[12] + $delta[13];
+
+			$dref->{"bytes_in_$e"} =
+			&round00( $delta_bytes_in / ( $tstamp - $last_tstamp ) );
+			$dref->{"packets_in_$e"} =
+			&round00( $delta_packets_in / ( $tstamp - $last_tstamp ) );
+			$dref->{"packeterrs_in_$e"} =
+			&round00( $delta_packeterrs_in / ( $tstamp - $last_tstamp ) );
+			$dref->{"bytes_out_$e"} =
+			&round00( $delta_bytes_out / ( $tstamp - $last_tstamp ) );
+			$dref->{"packets_out_$e"} =
+			&round00( $delta_packets_out / ( $tstamp - $last_tstamp ) );
+			$dref->{"packeterrs_out_$e"} =
+			&round00( $delta_packeterrs_out / ( $tstamp - $last_tstamp ) );
 		}
 	}
-	
-	$delta_bytes_in       = $delta[0];
-	$delta_packets_in     = $delta[1];
-	$delta_packeterrs_in  = $delta[2] + $delta[3] + $delta[4] + $delta[5];
-	$delta_bytes_out      = $delta[8];
-	$delta_packets_out    = $delta[9];
-	$delta_packeterrs_out = $delta[10] + $delta[11] + $delta[12] + $delta[13];
 
-	$dref->{'bytes_in'} =
-	  &round00( $delta_bytes_in / ( $tstamp - $last_tstamp ) );
-	$dref->{'packets_in'} =
-	  &round00( $delta_packets_in / ( $tstamp - $last_tstamp ) );
-	$dref->{'packeterrs_in'} =
-	  &round00( $delta_packeterrs_in / ( $tstamp - $last_tstamp ) );
-	$dref->{'bytes_out'} =
-	  &round00( $delta_bytes_out / ( $tstamp - $last_tstamp ) );
-	$dref->{'packets_out'} =
-	  &round00( $delta_packets_out / ( $tstamp - $last_tstamp ) );
-	$dref->{'packeterrs_out'} =
-	  &round00( $delta_packeterrs_out / ( $tstamp - $last_tstamp ) );
-	$dref->{'eth_speed'} = $eth_speed;
-	  
+	$dref->{"eth_speed"} = $eth_speed;
+		  
 	$self->{'last_tstamp'} = $tstamp;
 
 	return (0);
