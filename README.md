@@ -17,7 +17,7 @@ They primarily wait N seconds, take a set of measurements, write them out to a f
 
 There are modules in `./lib` for CPU-type info, disk-full, disk-IO, GPU-type info, GPU load, Sun Grid Engine (and Condor) info, network config, network-IO, network ping checks, memory info, load average, mount-check (is a mount-point available), NFS-client status, operating system info, power usage info (through IPMI or WattsUp meters), SGE status, Intel TurboBoost info (from their turbostat tool), and a few more.
 
-The system is configured with a (Perl-syntax) config file:
+The system is configured with a (Perl-syntax) config file -- see `./etc` for more examples:
 ```
 our $heartbeat   = 60*10;  # num seconds for inner loop (every 10 min)
 our $loglocal    = 'local4';
@@ -70,20 +70,65 @@ The "sleep for N seconds" part actually uses a second (forked) process to keep b
    2. collect new data:  module->getdata()
    3. output data
 
-Since forked timer does not spend time collecting data, it should provide better accuracy for the delta between collection time-stamps.  E.g. some network modules might wait for many seconds to try and collect data, those seconds will slowly cause a simpler `sleep`-based loop to drift.
+Since forked timer does not spend time collecting data, it should provide better accuracy for the delta between collection time-stamps.  
+E.g. some network modules might wait for many seconds to try and collect data, those seconds will slowly cause a simpler `sleep`-based loop to drift.
 
 ### Notes & Caveats
 
 There are some obvious caveats to what the tools can do -- keep in mind that the data is not perfect, but it is often quite useful:  
 
-Time-based profiles will probably miss short-lived events 
-: Most of the measurement modules rely on counters, so it is likely that you can get summary data or time-averaged data (averaged over whatever granularity you choose).
-: E.g. memory usage may spike in the middle of a sleep cycle; you may be able to see the effects of the spike in the high-water mark, but the recorded "memory-used" values may not show anything E.g. network usage may spike in the middle of the sleep cycle; you won't be able to tell if this was N bytes-per-sec over that time-window, or 100N bytes-per-second over a smaller window
+#### Time-based profiles will probably miss short-lived events
+Most of the measurement modules rely on counters, so it is likely that you can get summary data or time-averaged data (averaged over whatever granularity you choose).  E.g. memory usage may spike in the middle of a sleep cycle; you may be able to see the effects of the spike in the high-water mark, but the recorded "memory-used" values may not show anything; with network IO, you won't be able to tell if the reading was N bytes-per-sec over the full time-window, or 100N bytes-per-second over a much smaller window.
 
-Linux only records some data at the machine level
-: If you are sharing the machine with other users or other programs, the data you record will include their contributions (which you probably can't pull out).
-: E.g. network usage is measuring all bytes in/out of the machine Easy solution is to find a "quiet" machine.
+#### Linux only records some data at the machine level
+If you are sharing the machine with other users or other programs, the data you record will include their contributions (which you probably can't pull out).  E.g. network usage is measuring all bytes in/out of the machine Easy solution is to find a "quiet" machine.
 
-System logs
-: The use of system logs allows you to use "regular" syslog tooling to redirect them to different files, to rotate the files, etc.
+#### System logs
+The use of system logs allows you to use "regular" syslog tooling to redirect them to different files (through `/etc/syslog.conf`), to rotate the files (`/etc/logrotate.conf`), etc.
 
+#### Extra Tools
+`memhog` and `iohog` and `calcpi` can be used for testing -- they will try to consume memory, IO ops, or cpu ops, respectively.
+
+* `calcpi -t 8` will run 8 calc-pi threads (which should max out 8 cpus)
+* `memhog.pl -m 100G` will run 1 process which will attempt to allocate 100GB of memory
+* `iohog -n 1000 -r 1K -f dummyfile` will write 1000 records (of 1KB each) to a dummy file
+* most of the tools will take a delay parameter, and allow for a "spike" (add more load after a delay)
+
+#### Dual-Level Logging
+The `duologger.pl` script runs N "inner-iterations" for every "outer" sampling run -- with 2 different sets of modules for the inner- and outer-loops. This allows you to run, say, the
+``netinfo10.pm`` module every minute, then aggregate statistics every 10 minutes.  The goal is that you would be able to see 1-min long network usage spikes that would otherwise be 
+hidden at a 10-min granularity.
+```
+our $heartbeat   = 60;  # num seconds for inner loop
+our $inner2outer = 10;  # num inner loops per outer
+
+# what modules do you need?
+use ping;
+use netinfo10;
+
+# to config a module, use its prep(key,val) function
+ping->prep( 'ping_ip', '10.184.3.10');
+
+# modules to poll more often (inner loop)
+push( @objs_in, netinfo10->new() );
+
+# modules to poll less often (outer loop)
+push( @objs_out, ping->new() );
+
+1;
+```
+
+#### strace and ltrace modules
+There are some not-quite-production-grade modules for `strace` and `ltrace` monitoring.  These assume they're being run with `bin/memrec.pl` and thus they can attach to a child-process-PID.
+The idea is that they can watch for system- and function-calls that the child is making and report on them as just-another-stat.  See `test/stracedrv.pl` and `test/ltracedrv.pl` for examples.
+
+
+## External and Vendor Tools
+* The `src/tstat/turbostat.c` code comes from Intel Corporation -- https://intel.com
+  * The version in this repos is for "historical" purposes only; it shows a 2010 copyright notice; surely there's a newer/better version available today!
+* The `src/wattsup/wattsup.c` code comes from Patrick Mochel
+  * The version in this repos is (C) 2005, so there is likely a newer/better version!
+  * The WattsUp Pro meter included a USB connector (the non-Pro model did not); the code pulls the data over USB
+* The `src/ipmitool-1.8.9` code is from a number of authors
+  * Again, the version in this repos is for "historical" purposes; it shows a 2005 copyright; surely there's a newer/better version available today!
+  * Dell provides power-usage data through IPMI on many of their server products; other vendors likely do the same (but that hasn't been tested)
